@@ -1,0 +1,70 @@
+---
+title: "Exercise technique prediction"
+output: html_document
+---
+
+Our goal is to build machine learning algorithm to predict activity quality from activity monitors. Subjects were asked to perform dumbbell curls with various technical mistakes. Data credit goes to http://groupware.les.inf.puc-rio.br/har
+
+We have two datasets, training set with 19622 entries, and testing set with 20 entries. Quality of activity (noted by "classe" variable) is unknown for testing set.
+
+First, we read the testing and training data. 
+
+```{r}
+library(caret)
+library(randomForest)
+trdf <- read.csv("pml-training.csv", sep = ",")
+tstdf <- read.csv("pml-testing.csv", sep = ",")
+```
+
+
+Columns that are empty in training set are not necessary. We also throw out first seven columns.
+
+```{r}
+trdf <- trdf[,colSums(is.na(tstdf))<nrow(tstdf)]
+tstdf <- tstdf[,colSums(is.na(tstdf))<nrow(tstdf)]
+numtr <- trdf[,8:60]
+```
+
+To build machine learning algorithm, we'll use randomForest function from randomForest package, since it's specifically suited for classifications problem. We'll check if this assumption is valid using cross validation. Training data set will be randomly divided in two parts: new training data and new test data, to see, how well will random forest based model predict exercise class.
+
+```{r}
+inTrain <- createDataPartition(y=numtr$classe, p=0.6, list=FALSE)
+training <- numtr[inTrain,]
+testing <- numtr[-inTrain,]
+
+tocompare <- testing$classe
+testing <- testing[,1:52]
+
+crossvalFit <- randomForest(classe ~ ., data = training, ntree = 500)
+crossvalRes <- predict(crossvalFit, newdata = testing)
+accuracy <- sum(tocompare == crossvalRes)/length(tocompare)
+accuracy
+```
+We'll check accuracy three more times
+
+```{r, echo = FALSE}
+for (i in 1:3) {
+inTrain <- createDataPartition(y=numtr$classe, p=0.6, list=FALSE)
+training <- numtr[inTrain,]
+testing <- numtr[-inTrain,]
+
+tocompare <- testing$classe
+testing <- testing[,1:52]
+
+crossvalFit <- randomForest(classe ~ ., data = training, ntree = 500)
+crossvalRes <- predict(crossvalFit, newdata = testing)
+tochn <- sum(tocompare == crossvalRes)/length(tocompare)
+accuracy[i] <- tochn
+}
+```
+
+```{r}
+accuracy
+```
+Every time it's higher than 0.99 which means out of sample error will be less than 1% since testing data was acquired in same manner. Works for us. Now let's predict classes of exercise for original test data set
+```{r, echo = FALSE}
+modFit <- randomForest(classe ~ ., data = numtr, ntree = 500)
+results <- predict(modFit, newdata = tstdf)
+results
+```
+
